@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Telegram.Bot;
@@ -48,23 +49,45 @@ namespace TgBotForMedUniversity.Handlers
         {
             using (var dbContext = new AppDbContext())
             {
-                // Переключаем запрос на клиентскую часть для поддержки случайного выбора
-                var questions = dbContext.Questions.AsEnumerable();
-                var question = questions.OrderBy(q => Guid.NewGuid()).FirstOrDefault();
+                // Получаем случайный вопрос с использованием SQL RANDOM()
+                var question = dbContext.Questions
+                    .OrderBy(q => EF.Functions.Random()) // Используем RANDOM() для SQLite
+                    .FirstOrDefault();
 
                 if (question == null)
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: callbackQuery.Message.Chat.Id,
-                        text: "В базе данных нет вопросов."
+                        text: "В базе данных нет доступных вопросов."
                     );
                     return;
                 }
 
-                var buttons = question.Options
-                    .Select((option, index) =>
+                // Предполагаем, что Options — массив строк
+                string[] options = question.Options;
+
+                if (options == null || options.Length == 0)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: callbackQuery.Message.Chat.Id,
+                        text: "Ошибка: вопрос не содержит вариантов ответа."
+                    );
+                    return;
+                }
+
+                // Формируем текст с вариантами ответа
+                string optionsText = string.Join("\n", options.Select((option, index) => $"{(char)('A' + index)}) {option}"));
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: callbackQuery.Message.Chat.Id,
+                    text: $"{question.Text}\n\n{optionsText}"
+                );
+
+                // Создаём кнопки
+                var buttons = options
+                    .Select((_, index) =>
                         Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
-                            option,
+                            ((char)('A' + index)).ToString(),
                             $"answer_{index}"
                         )
                     ).ToArray();
@@ -73,19 +96,19 @@ namespace TgBotForMedUniversity.Handlers
 
                 await _botClient.SendTextMessageAsync(
                     chatId: callbackQuery.Message.Chat.Id,
-                    text: question.Text,
+                    text: "Выберите ответ:",
                     replyMarkup: keyboard
                 );
-
-                // Сохраняем текущий вопрос для обработки ответа
-                dbContext.QuestionStates.Add(new QuestionState
-                {
-                    ChatId = callbackQuery.Message.Chat.Id,
-                    QuestionId = question.Id
-                });
-                dbContext.SaveChanges();
             }
         }
+
+
+
+
+
+
+
+
 
         private async Task HandleAnswerAsync(CallbackQuery callbackQuery, int selectedAnswerIndex)
         {
