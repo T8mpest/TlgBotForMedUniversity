@@ -21,6 +21,11 @@ namespace TgBotForMedUniversity
                 DbInitializer.Initialize(dbContext);
             }
 
+            using (var dbContext = new AppDbContext())
+            {
+                dbContext.Database.EnsureCreated();
+            }
+
             // 2. Настройка бота
             var botConfig = new BotConfiguration();
             var botClient = new TelegramBotClient(botConfig.BotToken);

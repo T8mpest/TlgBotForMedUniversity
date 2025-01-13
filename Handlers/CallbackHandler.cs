@@ -21,12 +21,9 @@ namespace TgBotForMedUniversity.Handlers
         {
             if (callbackQuery.Data.StartsWith("answer_"))
             {
-                // Обработка ответа
-                var answerIndex = int.Parse(callbackQuery.Data.Replace("answer_", ""));
-                await _botClient.SendTextMessageAsync(
-                    chatId: callbackQuery.Message.Chat.Id,
-                    text: $"Вы выбрали ответ: {answerIndex + 1}"
-                );
+                // Обработка ответа пользователя
+                var selectedAnswerIndex = int.Parse(callbackQuery.Data.Replace("answer_", ""));
+                await HandleAnswerAsync(callbackQuery, selectedAnswerIndex);
             }
             else
             {
@@ -51,10 +48,8 @@ namespace TgBotForMedUniversity.Handlers
         {
             using (var dbContext = new AppDbContext())
             {
-                // Загружаем все вопросы из базы данных
-                var questions = dbContext.Questions.AsEnumerable(); // Переключаемся на выполнение на стороне клиента
-
-                // Выбираем случайный вопрос
+                // Переключаем запрос на клиентскую часть для поддержки случайного выбора
+                var questions = dbContext.Questions.AsEnumerable();
                 var question = questions.OrderBy(q => Guid.NewGuid()).FirstOrDefault();
 
                 if (question == null)
@@ -66,7 +61,6 @@ namespace TgBotForMedUniversity.Handlers
                     return;
                 }
 
-                // Создаём инлайн-кнопки для каждого варианта ответа
                 var buttons = question.Options
                     .Select((option, index) =>
                         Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
@@ -77,12 +71,67 @@ namespace TgBotForMedUniversity.Handlers
 
                 var keyboard = new Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup(buttons);
 
-                // Отправляем вопрос с кнопками
                 await _botClient.SendTextMessageAsync(
                     chatId: callbackQuery.Message.Chat.Id,
                     text: question.Text,
                     replyMarkup: keyboard
                 );
+
+                // Сохраняем текущий вопрос для обработки ответа
+                dbContext.QuestionStates.Add(new QuestionState
+                {
+                    ChatId = callbackQuery.Message.Chat.Id,
+                    QuestionId = question.Id
+                });
+                dbContext.SaveChanges();
+            }
+        }
+
+        private async Task HandleAnswerAsync(CallbackQuery callbackQuery, int selectedAnswerIndex)
+        {
+            using (var dbContext = new AppDbContext())
+            {
+                // Получаем текущий вопрос из состояния
+                var questionState = dbContext.QuestionStates.FirstOrDefault(qs => qs.ChatId == callbackQuery.Message.Chat.Id);
+
+                if (questionState == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: callbackQuery.Message.Chat.Id,
+                        text: "Произошла ошибка. Текущий вопрос не найден."
+                    );
+                    return;
+                }
+
+                var currentQuestion = dbContext.Questions.FirstOrDefault(q => q.Id == questionState.QuestionId);
+
+                if (currentQuestion == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: callbackQuery.Message.Chat.Id,
+                        text: "Произошла ошибка. Вопрос не найден."
+                    );
+                    return;
+                }
+
+                // Проверяем, правильный ли ответ
+                bool isCorrect = currentQuestion.CorrectAnswers.Contains(selectedAnswerIndex);
+
+                string responseMessage = isCorrect
+                    ? "Ваш ответ правильный!"
+                    : "Ваш ответ неправильный. Правильный ответ: " + string.Join(", ", currentQuestion.CorrectAnswers.Select(i => currentQuestion.Options[i]));
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: callbackQuery.Message.Chat.Id,
+                    text: responseMessage
+                );
+
+                // Удаляем состояние текущего вопроса
+                dbContext.QuestionStates.Remove(questionState);
+                dbContext.SaveChanges();
+
+                // Переход к следующему вопросу
+                await SendRandomQuestionAsync(callbackQuery);
             }
         }
     }
