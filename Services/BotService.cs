@@ -14,8 +14,10 @@ namespace TgBotForMedUniversity.Services
         {
             using (var dbContext = new AppDbContext())
             {
-                
-                dbContext.Database.Migrate();
+                if (!dbContext.Questions.Any())
+                {
+                    dbContext.Database.Migrate();
+                }
             }
         }
 

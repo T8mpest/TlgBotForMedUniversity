@@ -65,7 +65,6 @@ namespace TgBotForMedUniversity.Handlers
                     return;
                 }
 
-                // Save question state
                 var questionState = new QuestionState
                 {
                     ChatId = callbackQuery.Message.Chat.Id,
@@ -80,39 +79,37 @@ namespace TgBotForMedUniversity.Handlers
             }
         }
 
+
         private async Task DisplayQuestionAsync(CallbackQuery callbackQuery, Question question, List<int> selectedOptions)
         {
             string optionsText = string.Join("\n", question.Options.Select((option, index) =>
                 $"{(selectedOptions.Contains(index) ? "✅" : "")} {(char)('A' + index)}) {option}"
             ));
 
-            await _botClient.SendTextMessageAsync(
-                chatId: callbackQuery.Message.Chat.Id,
-                text: $"{question.Text}\n\n{optionsText}"
-            );
-
             var buttons = question.Options
                 .Select((_, index) =>
                     Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
-                        ((char)('A' + index)).ToString(),
+                        $"{(selectedOptions.Contains(index) ? "✅ " : "")}{(char)('A' + index)}",
                         $"answer_{index}"
                     )
                 ).ToList();
 
-            // Add "Submit Answers" button
             buttons.Add(Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
-                "Submit Answers",
+                "Send Answers",
                 "submit_answers"
             ));
 
-            var keyboard = new Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup(buttons);
+            var keyboard = new Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup(buttons.Chunk(4)); // Делаем по 4 кнопки в строке
 
-            await _botClient.SendTextMessageAsync(
+            await _botClient.EditMessageTextAsync(
                 chatId: callbackQuery.Message.Chat.Id,
-                text: "Choose your answers:",
+                messageId: callbackQuery.Message.MessageId,
+                text: $"{question.Text}\n\n{optionsText}",
                 replyMarkup: keyboard
             );
         }
+
+
 
         private async Task ToggleAnswerAsync(CallbackQuery callbackQuery, int selectedAnswerIndex)
         {
@@ -132,10 +129,12 @@ namespace TgBotForMedUniversity.Handlers
                 var selectedOptions = questionState.SelectedOptions;
 
                 if (selectedOptions.Contains(selectedAnswerIndex))
-                    selectedOptions.Remove(selectedAnswerIndex); // Deselect
+                    selectedOptions.Remove(selectedAnswerIndex); // Unselect
                 else
                     selectedOptions.Add(selectedAnswerIndex); // Select
 
+                questionState.SelectedOptions = selectedOptions;
+                dbContext.QuestionStates.Update(questionState);
                 dbContext.SaveChanges();
 
                 var currentQuestion = dbContext.Questions.FirstOrDefault(q => q.Id == questionState.QuestionId);
@@ -143,6 +142,8 @@ namespace TgBotForMedUniversity.Handlers
                 await DisplayQuestionAsync(callbackQuery, currentQuestion, selectedOptions);
             }
         }
+
+
 
         private async Task CheckAnswersAsync(CallbackQuery callbackQuery)
         {
@@ -190,5 +191,8 @@ namespace TgBotForMedUniversity.Handlers
                 await SendRandomQuestionAsync(callbackQuery);
             }
         }
+
+
+
     }
 }
