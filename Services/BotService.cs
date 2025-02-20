@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,13 +10,15 @@ namespace TgBotForMedUniversity.Services
 {
     public class BotService
     {
-        public BotService() 
+        public BotService()
         {
             using (var dbContext = new AppDbContext())
             {
-                DbInitializer.Initialize(dbContext);
+                
+                dbContext.Database.Migrate();
             }
         }
+
         public void StartBot()
         {
             Console.WriteLine("Bot Started");
