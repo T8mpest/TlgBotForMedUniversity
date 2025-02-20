@@ -75,9 +75,33 @@ namespace TgBotForMedUniversity.Handlers
                 dbContext.QuestionStates.Add(questionState);
                 dbContext.SaveChanges();
 
-                await DisplayQuestionAsync(callbackQuery, question, questionState.SelectedOptions);
+                string optionsText = string.Join("\n", question.Options.Select((option, index) =>
+                    $"{(char)('A' + index)}) {option}"
+                ));
+
+                var buttons = question.Options
+                    .Select((_, index) =>
+                        Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
+                            $"{(char)('A' + index)}",
+                            $"answer_{index}"
+                        )
+                    ).ToList();
+
+                buttons.Add(Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
+                    "Send Answers",
+                    "submit_answers"
+                ));
+
+                var keyboard = new Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup(buttons.Chunk(4));
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: callbackQuery.Message.Chat.Id,
+                    text: $"{question.Text}\n\n{optionsText}",
+                    replyMarkup: keyboard
+                );
             }
         }
+
 
 
         private async Task DisplayQuestionAsync(CallbackQuery callbackQuery, Question question, List<int> selectedOptions)
@@ -149,7 +173,8 @@ namespace TgBotForMedUniversity.Handlers
         {
             using (var dbContext = new AppDbContext())
             {
-                var questionState = dbContext.QuestionStates.FirstOrDefault(qs => qs.ChatId == callbackQuery.Message.Chat.Id);
+                var questionState = dbContext.QuestionStates
+                    .FirstOrDefault(qs => qs.ChatId == callbackQuery.Message.Chat.Id);
 
                 if (questionState == null)
                 {
@@ -177,8 +202,13 @@ namespace TgBotForMedUniversity.Handlers
                 int correctCount = selectedAnswers.Count(sa => correctAnswers.Contains(sa));
                 int incorrectCount = selectedAnswers.Count(sa => !correctAnswers.Contains(sa));
 
+                var correctLetters = correctAnswers
+                    .Select(index => $"{(char)('A' + index)}")
+                    .ToList();
+
                 string resultMessage = $"Correct answers: {correctCount}\n" +
-                                       $"Incorrect answers: {incorrectCount}";
+                                       $"Incorrect answers: {incorrectCount}\n" +
+                                       $"Correct was: {string.Join(", ", correctLetters)}";
 
                 await _botClient.SendTextMessageAsync(
                     chatId: callbackQuery.Message.Chat.Id,
@@ -188,9 +218,18 @@ namespace TgBotForMedUniversity.Handlers
                 dbContext.QuestionStates.Remove(questionState);
                 dbContext.SaveChanges();
 
+                
+                await _botClient.EditMessageReplyMarkupAsync(
+                    chatId: callbackQuery.Message.Chat.Id,
+                    messageId: callbackQuery.Message.MessageId,
+                    replyMarkup: null
+                );
+
                 await SendRandomQuestionAsync(callbackQuery);
             }
         }
+
+
 
 
 
