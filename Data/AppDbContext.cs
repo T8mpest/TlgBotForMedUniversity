@@ -10,7 +10,7 @@ namespace TgBotForMedUniversity.Data
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlite("Data Source=questions.db");
+            optionsBuilder.UseSqlite("Data Source=" + Path.Combine(Directory.GetCurrentDirectory(), "questions.db"));
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

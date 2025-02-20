@@ -10,27 +10,22 @@ namespace TgBotForMedUniversity.Data
         {
             context.Database.EnsureCreated();
 
-            if (context.Questions.Any())
-                return;
-
-            var questions = new[]
+            if (!context.QuestionStates.Any())
             {
-                new Question
+                var states = new[]
                 {
-                    Text = "Что такое H2O?",
-                    Options = new[] { "Вода", "Кислород", "Углекислый газ", "Соль" },
-                    CorrectAnswers = new[] { 0 }
-                },
-                new Question
-                {
-                    Text = "Выберите щелочи:",
-                    Options = new[] { "NaOH", "HCl", "KOH", "CH3COOH" },
-                    CorrectAnswers = new[] { 0, 2 }
-                }
-            };
+            new QuestionState
+            {
+                Id = 1,
+                ChatId = 123456789,
+                QuestionId = 1,
+            }
+        };
 
-            context.Questions.AddRange(questions);
-            context.SaveChanges();
+                context.QuestionStates.AddRange(states);
+                context.SaveChanges();
+            }
         }
+
     }
 }

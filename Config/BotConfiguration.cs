@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,8 +13,11 @@ namespace TgBotForMedUniversity.Config
 
         public BotConfiguration()
         {
-            // Токен можно хранить в appsettings.json или переменных окружения
-            BotToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN") ?? "7547543090:AAFI6CtKfHwRJoUyL6Ki5nz_sO5fYclKc1k";
+            var builder = new ConfigurationBuilder()
+                .AddUserSecrets<BotConfiguration>();
+
+            var configuration = builder.Build();
+            BotToken = configuration["BotConfiguration:BotToken"];
         }
     }
 }
